@@ -1,12 +1,10 @@
 package org.springframework.data.hadoop.cache;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.springframework.data.hadoop.dao.FXDeal;
 
@@ -15,14 +13,12 @@ public class FXDealCache {
 	private static final String BOOKED = "BOOKED";
 	private HashMap <String, List <FXDeal>> fxCache = new HashMap<String, List <FXDeal>>();
 	
-	private static FXDealCache fxDealCache;
+	private static FXDealCache fxDealCache = new FXDealCache();
+	
+	private FXDealCache(){
+	}
 	
 	public static FXDealCache getInstance(){
-		
-		if (fxDealCache == null){
-			
-			return new FXDealCache();
-		}
 		return fxDealCache;
 	}
 	

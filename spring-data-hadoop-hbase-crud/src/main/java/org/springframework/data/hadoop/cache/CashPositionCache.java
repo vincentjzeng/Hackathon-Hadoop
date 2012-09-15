@@ -7,20 +7,17 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.hadoop.dao.CashPosition;
-import org.springframework.data.hadoop.dao.FXDeal;
 
 public class CashPositionCache {
 	
 	private HashMap <String, List <CashPosition>> cpCache = new HashMap<String, List <CashPosition>>();
 	
-	private static CashPositionCache cashPositionCache;
+	private static CashPositionCache cashPositionCache = new CashPositionCache();
+	
+	private CashPositionCache(){
+	}
 	
 	public static CashPositionCache getInstance(){
-		
-		if (cashPositionCache == null){
-			
-			return new CashPositionCache();
-		}
 		return cashPositionCache;
 	}
 	
@@ -44,5 +41,11 @@ public class CashPositionCache {
 		
 	}
 
-
+	public List <CashPosition> get(String key) {
+		return cpCache.get(key);
+	}
+	
+	public HashMap <String, List <CashPosition>>  getAll(){
+		return cpCache;
+	}
 }

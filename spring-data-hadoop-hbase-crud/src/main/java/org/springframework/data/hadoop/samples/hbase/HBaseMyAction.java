@@ -37,8 +37,12 @@ import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.hadoop.cache.CashPositionCache;
 import org.springframework.data.hadoop.cache.FXDealCache;
+import org.springframework.data.hadoop.cache.MMDealCache;
+import org.springframework.data.hadoop.dao.CashPosition;
 import org.springframework.data.hadoop.dao.FXDeal;
+import org.springframework.data.hadoop.dao.MMDeal;
 import org.springframework.data.hadoop.hbase.HbaseTemplate;
 import org.springframework.data.hadoop.hbase.ResultsExtractor;
 import org.springframework.stereotype.Component;
@@ -77,10 +81,9 @@ public class HBaseMyAction {
 
 		//5. scan data
 		long t1 = System.currentTimeMillis();
-		scanClientHierarchy("11");
+		scanClientHierarchy("1");
 		long t2 = System.currentTimeMillis();
 		System.out.println("Processing time - " +  (t2 - t1)/1000);
-//		scanCashPosition();
 //		scanCorporateEventEntitlements();
 //		scanCustodyPosition();
 //		scanCustodyTrade();
@@ -157,8 +160,26 @@ public class HBaseMyAction {
 		System.out.println(fxmmCodes);
 		for(String fxmmCode : fxmmCodes){
 			if(!fxmmCode.equals("\\N")){
-				System.out.println("Going to scan fx deal for : " + fxmmCode);
+				System.out.println("Scaning fx deal for : " + fxmmCode);
 				scanFxDeal(fxmmCode);
+			}
+		}
+		
+		List<String> portfolioCodes = clientIdToFxmmCode.get(id);
+		System.out.println(portfolioCodes);
+		for(String portfolioCode : portfolioCodes){
+			if(!portfolioCode.equals("\\N")){
+				System.out.println("Scaning mm deal for : " + portfolioCode);
+				scanMmDeal(portfolioCode);
+			}
+		}
+		
+		List<String> cashAccountNumbers = clientIdToCashAccountNumber.get(id);
+		System.out.println(cashAccountNumbers);
+		for(String cashAccountNumber : cashAccountNumbers){
+			if(!cashAccountNumber.equals("\\N")){
+				System.out.println("Scaning cash position for : " + cashAccountNumber);
+				scanCashPosition(cashAccountNumber);
 			}
 		}
 	}
@@ -172,6 +193,7 @@ public class HBaseMyAction {
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
+		
 		final List<FXDeal> fxDeals = new ArrayList<FXDeal>();
 		final DateFormat format = new SimpleDateFormat("yyyyMMdd");
 		
@@ -227,12 +249,15 @@ public class HBaseMyAction {
 	
 	private void scanMmDeal(String portfolioCode){
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes("JAMLGGLFCC"));
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
 		filters.add(f1);
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
+		
+		final List<MMDeal> mmDeals = new ArrayList<MMDeal>();
+		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
 		
 		t.find("g11_mm_deal", scan, new ResultsExtractor<String>() {
 
@@ -241,36 +266,58 @@ public class HBaseMyAction {
 				while(i.hasNext()){
 					StringBuilder sb = new StringBuilder();
 					Result r = i.next();
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
 					System.out.println(sb.toString());
+					
+					try{
+						mmDeals.add(new MMDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate"))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date"))))));
+					}catch(java.text.ParseException parseException) {
+						System.out.println(parseException.getMessage());
+					}
 				}
 				return null;
 			}
 			
 		});
+		
+		MMDealCache.getInstance().updateCache(portfolioCode, mmDeals);
+		List<MMDeal> mmList = MMDealCache.getInstance().get(portfolioCode);
+		if(mmList != null) {
+			System.out.println("Initialized FX MM List - " + mmList.size());
+		}
 	}
 	
-private void scanCashPosition() {
+	private void scanCashPosition(String cashAccountNumber) {
 		
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"), CompareOp.EQUAL, Bytes.toBytes("UK"));
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cashAccountNumber));
 		filters.add(f1);
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
 		
+		final List<CashPosition> cashPositions = new ArrayList<CashPosition>();
+		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+		
 		t.find("g11_cash_position", scan, new ResultsExtractor<String>() {
 
 			public String extractData(ResultScanner scanner) throws Exception {
+				
 				Iterator<Result> i = scanner.iterator();
-				System.out.println("Source System Country Code,  Source System Coce, Cash Account Number, Date, Currency, Ledger Balance, Cleard Balance, Accrued Interest Amount\n");
+				
 				while(i.hasNext()){
 					StringBuilder sb = new StringBuilder();
 					Result r = i.next();
@@ -286,11 +333,28 @@ private void scanCashPosition() {
 					byte[] accruedInterestAmount = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"));
 					sb.append(accruedInterestAmount != null ? Bytes.toString(accruedInterestAmount) : accruedInterestAmount);
 					System.out.println(sb.toString());
+					
+					try{
+						cashPositions.add(new CashPosition(Bytes.toString(r.getValue(Bytes.toBytes("cash_account_number"), Bytes.toBytes("Portfolio_code"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date"))))));
+					}catch(java.text.ParseException parseException) {
+						System.out.println(parseException.getMessage());
+					}
 				}
 				return null;
 			}
 			
 		});
+		
+		CashPositionCache.getInstance().updateCache(cashAccountNumber, cashPositions);
+		List<CashPosition> cashPositionlist = CashPositionCache.getInstance().get(cashAccountNumber);
+		if(cashPositionlist != null) {
+			System.out.println("Initialized cache position list - " + cashPositionlist.size());
+		}
 	}
 	
 	private void scanCorporateEventEntitlements() {

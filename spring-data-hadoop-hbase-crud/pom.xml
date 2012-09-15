@@ -7,7 +7,7 @@
 	<name>spring-data-hadoop-hbase-crud</name>
 	<!-- Shared version number properties -->
 	<properties>
-		<org.springframework.version>3.1.2.RELEASE</org.springframework.version>
+		<org.springframework.version>3.0.5.RELEASE</org.springframework.version>
 	</properties>
 	<repositories>
 		<repository>
