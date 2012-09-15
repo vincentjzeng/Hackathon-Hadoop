@@ -27,7 +27,6 @@ public class MMDeal {
 		
 	}
 	
-	
 	public String getPortfolioCode(){
 		
 		return this.portfolioCode;
