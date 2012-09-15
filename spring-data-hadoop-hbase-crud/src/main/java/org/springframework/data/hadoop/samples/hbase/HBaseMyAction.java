@@ -28,6 +28,8 @@ import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -38,13 +40,20 @@ import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.hadoop.cache.CashPositionCache;
+import org.springframework.data.hadoop.cache.CustodyPositionCache;
+import org.springframework.data.hadoop.cache.CustodyTradeCache;
+import org.springframework.data.hadoop.cache.EntitlementCache;
 import org.springframework.data.hadoop.cache.FXDealCache;
 import org.springframework.data.hadoop.cache.MMDealCache;
 import org.springframework.data.hadoop.dao.CashPosition;
+import org.springframework.data.hadoop.dao.CustodyPosition;
+import org.springframework.data.hadoop.dao.CustodyTrade;
+import org.springframework.data.hadoop.dao.Entitlement;
 import org.springframework.data.hadoop.dao.FXDeal;
 import org.springframework.data.hadoop.dao.MMDeal;
 import org.springframework.data.hadoop.hbase.HbaseTemplate;
 import org.springframework.data.hadoop.hbase.ResultsExtractor;
+import org.springframework.data.hadoop.hbase.TableCallback;
 import org.springframework.stereotype.Component;
 
 /**
@@ -80,10 +89,10 @@ public class HBaseMyAction {
 		//readData();
 
 		//5. scan data
-		long t1 = System.currentTimeMillis();
-		scanClientHierarchy("1");
-		long t2 = System.currentTimeMillis();
-		System.out.println("Processing time - " +  (t2 - t1)/1000);
+
+		scanClientHierarchy("11");
+		//readClientHierarchy();
+
 //		scanCorporateEventEntitlements();
 //		scanCustodyPosition();
 //		scanCustodyTrade();
@@ -91,6 +100,62 @@ public class HBaseMyAction {
 		System.out.println("Application started");
 	}
 
+	/**
+	 * Read data from table.
+	 * 
+	 */
+	private void readClientHierarchy() {
+		// replace with get 
+		System.out.println(t.execute("g11_client_hierarchy", new TableCallback<Long>() {
+			public Long doInTable(HTable table) throws Throwable {
+				//Get get = new Get(Bytes.toBytes("11UKHUB73288764"));
+				Get get = new Get(Bytes.toBytes("11UKHUB73288764"));
+				Result r = table.get(get);
+				
+				List<String> fxmmCodes = new ArrayList<String>();
+				List<String> cashAccountNumbers = new ArrayList<String>();
+				List<String> securityAccountNumbers = new ArrayList<String>();
+				
+				StringBuilder sb = new StringBuilder();
+				String clientId = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id")));
+				sb.append(clientId).append(",");
+				sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")))).append(",");
+				sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")))).append(",");
+				byte[] sourceSystemCountryCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"));
+				sb.append(sourceSystemCountryCode != null ? Bytes.toString(sourceSystemCountryCode) : null).append(",");
+				byte[] sourceSystemCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"));
+				sb.append(sourceSystemCode != null ? Bytes.toString(sourceSystemCode) : sourceSystemCode).append(",");
+				sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("calypso_counterpty_id")))).append(",");
+				sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))));
+				System.out.println(sb.toString());
+				
+				String fxmmCode = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")));
+				if(fxmmCode != null) {
+					fxmmCodes.add(fxmmCode);
+				}
+				clientIdToFxmmCode.put(clientId,fxmmCodes);
+				
+				String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")));
+				if(cashAccountNumber != null) {
+					cashAccountNumbers.add(cashAccountNumber);
+				}
+				clientIdToCashAccountNumber.put(clientId, cashAccountNumbers);
+				
+				String securityAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
+				if(securityAccountNumber != null) {
+					securityAccountNumbers.add(securityAccountNumber);
+				}
+				clientIdToSecurityAccountNumber.put(clientId, securityAccountNumbers);
+				
+				System.out.println("Initialized clientIdToFxmmCode - " + fxmmCodes.size());
+				System.out.println("Initialized clientIdToCashAccountNumber - " + cashAccountNumbers.size());
+				System.out.println("Initialized clientIdToSecurityAccountNumber - " + securityAccountNumbers.size());
+				
+				return r.getRow() != null ? Bytes.toLong(r.getRow()) : -1L;
+			}
+		}));
+	}
+	
 
 	/**
 	 * Scan table data.
@@ -119,6 +184,9 @@ public class HBaseMyAction {
 				while(i.hasNext()){
 					StringBuilder sb = new StringBuilder();
 					Result r = i.next();
+					
+					System.out.println("Row key - " + Bytes.toString(r.getRow()));
+					
 					String clientId = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id")));
 					sb.append(clientId).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")))).append(",");
@@ -156,39 +224,59 @@ public class HBaseMyAction {
 			}
 		});
 		
+		long t1 = System.currentTimeMillis();
+		
 		List<String> fxmmCodes = clientIdToFxmmCode.get(id);
 		System.out.println(fxmmCodes);
-		for(String fxmmCode : fxmmCodes){
-			if(!fxmmCode.equals("\\N")){
-				System.out.println("Scaning fx deal for : " + fxmmCode);
-				scanFxDeal(fxmmCode);
-			}
-		}
+		scanFxDeal(id, fxmmCodes);
 		
 		List<String> portfolioCodes = clientIdToFxmmCode.get(id);
 		System.out.println(portfolioCodes);
-		for(String portfolioCode : portfolioCodes){
-			if(!portfolioCode.equals("\\N")){
-				System.out.println("Scaning mm deal for : " + portfolioCode);
-				scanMmDeal(portfolioCode);
-			}
-		}
+		scanMmDeal(id, portfolioCodes);
 		
 		List<String> cashAccountNumbers = clientIdToCashAccountNumber.get(id);
 		System.out.println(cashAccountNumbers);
-		for(String cashAccountNumber : cashAccountNumbers){
-			if(!cashAccountNumber.equals("\\N")){
-				System.out.println("Scaning cash position for : " + cashAccountNumber);
-				scanCashPosition(cashAccountNumber);
+		scanCashPosition(id, cashAccountNumbers);
+		
+		List<String> securityAccountNumbers = clientIdToSecurityAccountNumber.get(id);
+		System.out.println(securityAccountNumbers);
+		for(String securityAccountNumber : securityAccountNumbers){
+			if(!securityAccountNumber.equals("\\N")){
+				System.out.println("Scaning corporate event entitlements for : " + securityAccountNumber);
+				scanCorporateEventEntitlements(securityAccountNumber);
 			}
 		}
+		
+		for(String securityAccountNumber : securityAccountNumbers){
+			if(!securityAccountNumber.equals("\\N")){
+				System.out.println("Scaning custody position for : " + securityAccountNumber);
+				scanCustodyPosition(securityAccountNumber);
+			}
+		}
+		
+		for(String securityAccountNumber : securityAccountNumbers){
+			if(!securityAccountNumber.equals("\\N")){
+				System.out.println("Scaning custody trade for : " + securityAccountNumber);
+				scanCustodyTrade(securityAccountNumber);
+			}
+		}
+		
+		long t2 = System.currentTimeMillis();
+		System.out.println("Processing time - " +  (t2 - t1)/1000);
 	}
 	
-	private void scanFxDeal(String cptyCode) {
+	private void scanFxDeal(String clientId, List<String> cptyCodes) {
 		
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
-		filters.add(f1);
+		
+		for(String cptyCode : cptyCodes){
+			if(!cptyCode.equals("\\N")){
+				System.out.println("Scaning fx deal for : " + cptyCode);
+				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
+				filters.add(f1);
+			}
+		}
+		
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
@@ -240,17 +328,24 @@ public class HBaseMyAction {
 			}
 			
 		});
-		FXDealCache.getInstance().updateCache(cptyCode, fxDeals);
-		List<FXDeal> fxCache = FXDealCache.getInstance().get(cptyCode);
+		FXDealCache.getInstance().updateCache(clientId, fxDeals);
+		List<FXDeal> fxCache = FXDealCache.getInstance().get(clientId);
 		if(fxCache != null) {
 			System.out.println("Initialized FX Deal Cache - " + fxCache.size());
 		}
 	}
 	
-	private void scanMmDeal(String portfolioCode){
+	private void scanMmDeal(String clientId, List<String> portfolioCodes){
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
-		filters.add(f1);
+		
+		for(String portfolioCode : portfolioCodes){
+			if(!portfolioCode.equals("\\N")){
+				System.out.println("Scaning mm deal for : " + portfolioCode);
+				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
+				filters.add(f1);
+			}
+		}
+		
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
@@ -292,18 +387,24 @@ public class HBaseMyAction {
 			
 		});
 		
-		MMDealCache.getInstance().updateCache(portfolioCode, mmDeals);
-		List<MMDeal> mmList = MMDealCache.getInstance().get(portfolioCode);
+		MMDealCache.getInstance().updateCache(clientId, mmDeals);
+		List<MMDeal> mmList = MMDealCache.getInstance().get(clientId);
 		if(mmList != null) {
 			System.out.println("Initialized FX MM List - " + mmList.size());
 		}
 	}
 	
-	private void scanCashPosition(String cashAccountNumber) {
-		
+	private void scanCashPosition(String cliengtId, List<String> cashAccountNumbers) {
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cashAccountNumber));
-		filters.add(f1);
+		
+		for(String cn : cashAccountNumbers){
+			if(!cn.equals("\\N")){
+				System.out.println("Scaning cash position for : " + cn);
+				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cn));
+				filters.add(f1);
+			}
+		}
+		
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
@@ -350,21 +451,24 @@ public class HBaseMyAction {
 			
 		});
 		
-		CashPositionCache.getInstance().updateCache(cashAccountNumber, cashPositions);
-		List<CashPosition> cashPositionlist = CashPositionCache.getInstance().get(cashAccountNumber);
+		CashPositionCache.getInstance().updateCache(cliengtId, cashPositions);
+		List<CashPosition> cashPositionlist = CashPositionCache.getInstance().get(cliengtId);
 		if(cashPositionlist != null) {
 			System.out.println("Initialized cache position list - " + cashPositionlist.size());
 		}
 	}
 	
-	private void scanCorporateEventEntitlements() {
+	private void scanCorporateEventEntitlements(String cashAccountNumber) {
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes("JAMLGGLFCC"));
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cashAccountNumber));
 		filters.add(f1);
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
+		
+		final List<Entitlement> entitlements = new ArrayList<Entitlement>();
+		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
 		
 		t.find("g11_corporate_event_entitlements", scan, new ResultsExtractor<String>() {
 
@@ -382,30 +486,49 @@ public class HBaseMyAction {
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("net_income_amount")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("pay_date")))).append(",");
 					System.out.println(sb.toString());
+					
+					try{
+						entitlements.add(new Entitlement(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("event_currency_code"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("entitlement_quantity"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("entitlement_rate"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("gross_income_amount"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("net_income_amount"))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("ex_date")))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("pay_date"))))));
+					}catch(java.text.ParseException parseException) {
+						System.out.println(parseException.getMessage());
+					}
 				}
 				return null;
 			}
 			
 		});
+		
+		EntitlementCache.getInstance().updateCache(cashAccountNumber, entitlements);
+		List<Entitlement> cashPositionlist = EntitlementCache.getInstance().get(cashAccountNumber);
+		if(cashPositionlist != null) {
+			System.out.println("Initialized entitlement list - " + cashPositionlist.size());
+		}
 	}
 	
-	private void scanCustodyPosition() {
+	private void scanCustodyPosition(String cashAccountNumber) {
 		
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"), CompareOp.EQUAL, Bytes.toBytes("UK"));
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Security_account_number"), CompareOp.EQUAL, Bytes.toBytes(cashAccountNumber));
 		filters.add(f1);
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
 		
+		final List<CustodyPosition> custodyPositions = new ArrayList<CustodyPosition>();
+		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+		
 		t.find("g11_custody_position", scan, new ResultsExtractor<String>() {
 
 			public String extractData(ResultScanner scanner) throws Exception {
 				Iterator<Result> i = scanner.iterator();
-				System.out.println("Source_system_code,  source_system_country_code, Asset_Class, Security_account_number, Security_account_name, Date," +
-						"isin_code, sedol_code, cusip_code, instrument_name, instrument_type, Location_code, location_description, location_country_code," +
-						"Traded_Quantity, Settled_Quantity\n");
 				while(i.hasNext()){
 					StringBuilder sb = new StringBuilder();
 					Result r = i.next();
@@ -426,21 +549,39 @@ public class HBaseMyAction {
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Traded_Quantity"))));
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Settled_Quantity"))));
 					System.out.println(sb.toString());
+					
+					try{
+						custodyPositions.add(new CustodyPosition(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("instrument_name"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("isin_code"))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date")))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Traded_Quantity")))));
+					}catch(java.text.ParseException parseException) {
+						System.out.println(parseException.getMessage());
+					}
 				}
 				return null;
 			}
 			
 		});
+		
+		CustodyPositionCache.getInstance().updateCache(cashAccountNumber, custodyPositions);
+		List<CustodyPosition> cashPositionlist = CustodyPositionCache.getInstance().get(cashAccountNumber);
+		if(cashPositionlist != null) {
+			System.out.println("Initialized custody position list - " + custodyPositions.size());
+		}
 	}
 	
-	private void scanCustodyTrade(){
+	private void scanCustodyTrade(String cashAccountNumber){
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_currency_code"), CompareOp.EQUAL, Bytes.toBytes("GBP"));
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Security_account_number"), CompareOp.EQUAL, Bytes.toBytes(cashAccountNumber));
 		filters.add(f1);
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
+		
+		final List<CustodyTrade> custodyTrades = new ArrayList<CustodyTrade>();
 		
 		t.find("g11_custody_trade", scan, new ResultsExtractor<String>() {
 
@@ -450,15 +591,30 @@ public class HBaseMyAction {
 					StringBuilder sb = new StringBuilder();
 					Result r = i.next();
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_currency_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_amount")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_price")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_status")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_type")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("value_date")))).append(",");
 					System.out.println(sb.toString());
+					
+					custodyTrades.add(new CustodyTrade(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_status"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_type"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_currency_code"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_amount"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_price")))));
 				}
 				return null;
+				
 			}
 			
 		});
+		
+		CustodyTradeCache.getInstance().updateCache(cashAccountNumber, custodyTrades);
+		List<CustodyTrade> cashTradeList = CustodyTradeCache.getInstance().get(cashAccountNumber);
+		if(cashTradeList != null) {
+			System.out.println("Initialized custody trade list - " + custodyTrades.size());
+		}
 	}
 }
