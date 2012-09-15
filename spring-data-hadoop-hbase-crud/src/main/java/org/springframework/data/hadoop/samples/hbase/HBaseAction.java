@@ -16,6 +16,8 @@
 
 package org.springframework.data.hadoop.samples.hbase;
 
+import java.util.List;
+
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
@@ -65,19 +67,19 @@ public class HBaseAction {
 		System.out.println("Application starting...");
 
 		//1. create table 
-		createTable();
+		//createTable();
 
 		//2. put data
-		addData();
+		//addData();
 
 		//3. increment 
-		increment();
+		//increment();
 
 		//4. get 1 column data
-		readData();
+		//readData();
 
 		//5. scan data
-		scanData();
+		//scanData();
 
 		System.out.println("Application started");
 	}
@@ -161,10 +163,14 @@ public class HBaseAction {
 	 */
 
 	private void scanData() {
-		t.find(tableName, columnFamilyName, linkAddress, new RowMapper<String>() {
+		List<String> rows = t.find(tableName, columnFamilyName, linkAddress, new RowMapper<String>() {
 			public String mapRow(Result result, int rowNum) throws Exception {
 				return Bytes.toString(result.value());
 			}
 		});
+		
+		for(String r : rows) {
+			System.out.println(r);
+		}
 	}
 }

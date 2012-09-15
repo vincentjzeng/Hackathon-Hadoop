@@ -14,6 +14,7 @@
 	<hdp:configuration>
 		hbase.zookeeper.quorum=192.168.1.146
 		hbase.zookeeper.property.clientPort=2181
+		hbase.master=192.168.1.146:2181
 	</hdp:configuration>
 
 	<hdp:hbase-configuration configuration-ref="hadoopConfiguration"/>
