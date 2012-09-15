@@ -54,7 +54,7 @@ public class HBaseAction {
 	String likeNumber = "likeCount";
 	String linkAddress = "link";
 	String columnFamilyName = "cf";
-	String tableName = "likes";
+	String tableName = "g11_likes";
 	String cellValue = "http://blog.springsource.org/2012/02/29/introducing-spring-hadoop/";
 
 	/**
@@ -62,6 +62,8 @@ public class HBaseAction {
 	 */
 	@PostConstruct
 	public void run() throws Exception {
+		System.out.println("Application starting...");
+
 		//1. create table 
 		createTable();
 
@@ -76,6 +78,8 @@ public class HBaseAction {
 
 		//5. scan data
 		scanData();
+
+		System.out.println("Application started");
 	}
 
 	/**
