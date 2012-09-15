@@ -267,67 +267,67 @@ public class HBaseMyAction {
 	
 	private void scanFxDeal(String clientId, List<String> cptyCodes) {
 		
-		List<Filter> filters = new ArrayList<Filter>();
-		
-		for(String cptyCode : cptyCodes){
-			if(!cptyCode.equals("\\N")){
-				System.out.println("Scaning fx deal for : " + cptyCode);
-				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
-				filters.add(f1);
-			}
-		}
-		
-		FilterList filterList1 = new FilterList(filters);
-		
-		Scan scan = new Scan();
-		scan.setFilter(filterList1);
-		
 		final List<FXDeal> fxDeals = new ArrayList<FXDeal>();
 		final DateFormat format = new SimpleDateFormat("yyyyMMdd");
 		
-		t.find("g11_fx_deal", scan, new ResultsExtractor<String>() {
-
-			public String extractData(ResultScanner scanner) throws Exception {
-				Iterator<Result> i = scanner.iterator();
-				
-				while(i.hasNext()){
-					StringBuilder sb = new StringBuilder();
-					Result r = i.next();
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))));
-					System.out.println(sb.toString());
-					
-					try{
-						fxDeals.add(new FXDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount"))),
-							format.parse((Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date"))))),
-							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))))));
-					}catch(java.text.ParseException parseException) {
-						parseException.getMessage();
-					}
-				}
-				return null;
-			}
+		for(String cptyCode : cptyCodes){
 			
-		});
+			if(!cptyCode.equals("\\N")){
+				System.out.println("Creating fx deal filter for : " + cptyCode);
+				FilterList filters = new FilterList();
+				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
+				filters.addFilter(f1);
+				
+				Scan scan = new Scan();
+				scan.setFilter(filters);
+				
+				t.find("g11_fx_deal", scan, new ResultsExtractor<String>() {
+
+					public String extractData(ResultScanner scanner) throws Exception {
+						Iterator<Result> i = scanner.iterator();
+						
+						while(i.hasNext()){
+							StringBuilder sb = new StringBuilder();
+							Result r = i.next();
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))));
+							System.out.println(sb.toString());
+							
+							try{
+								fxDeals.add(new FXDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount"))),
+									format.parse((Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date"))))),
+									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))))));
+							}catch(java.text.ParseException parseException) {
+								parseException.getMessage();
+							}
+						}
+						return null;
+					}
+					
+				});
+
+			}
+		}
+
 		FXDealCache.getInstance().updateCache(clientId, fxDeals);
 		List<FXDeal> fxCache = FXDealCache.getInstance().get(clientId);
 		if(fxCache != null) {
@@ -336,56 +336,54 @@ public class HBaseMyAction {
 	}
 	
 	private void scanMmDeal(String clientId, List<String> portfolioCodes){
-		List<Filter> filters = new ArrayList<Filter>();
-		
-		for(String portfolioCode : portfolioCodes){
-			if(!portfolioCode.equals("\\N")){
-				System.out.println("Scaning mm deal for : " + portfolioCode);
-				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
-				filters.add(f1);
-			}
-		}
-		
-		FilterList filterList1 = new FilterList(filters);
-		
-		Scan scan = new Scan();
-		scan.setFilter(filterList1);
-		
 		final List<MMDeal> mmDeals = new ArrayList<MMDeal>();
 		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
 		
-		t.find("g11_mm_deal", scan, new ResultsExtractor<String>() {
+		for(String portfolioCode : portfolioCodes){
+			if(!portfolioCode.equals("\\N")){
+				System.out.println("Creating mm deal filter for : " + portfolioCode);
+				List<Filter> filters = new ArrayList<Filter>();
+				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
+				filters.add(f1);
+				
+				FilterList filterList1 = new FilterList(filters);
+				
+				Scan scan = new Scan();
+				scan.setFilter(filterList1);
+				
+				t.find("g11_mm_deal", scan, new ResultsExtractor<String>() {
 
-			public String extractData(ResultScanner scanner) throws Exception {
-				Iterator<Result> i = scanner.iterator();
-				while(i.hasNext()){
-					StringBuilder sb = new StringBuilder();
-					Result r = i.next();
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
-					System.out.println(sb.toString());
-					
-					try{
-						mmDeals.add(new MMDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate"))),
-							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))),
-							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date"))))));
-					}catch(java.text.ParseException parseException) {
-						System.out.println(parseException.getMessage());
+					public String extractData(ResultScanner scanner) throws Exception {
+						Iterator<Result> i = scanner.iterator();
+						while(i.hasNext()){
+							StringBuilder sb = new StringBuilder();
+							Result r = i.next();
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
+							System.out.println(sb.toString());
+							
+							try{
+								mmDeals.add(new MMDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate"))),
+									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))),
+									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date"))))));
+							}catch(java.text.ParseException parseException) {
+								System.out.println(parseException.getMessage());
+							}
+						}
+						return null;
 					}
-				}
-				return null;
+				});
 			}
-			
-		});
+		}
 		
 		MMDealCache.getInstance().updateCache(clientId, mmDeals);
 		List<MMDeal> mmList = MMDealCache.getInstance().get(clientId);
@@ -395,61 +393,62 @@ public class HBaseMyAction {
 	}
 	
 	private void scanCashPosition(String cliengtId, List<String> cashAccountNumbers) {
-		List<Filter> filters = new ArrayList<Filter>();
-		
-		for(String cn : cashAccountNumbers){
-			if(!cn.equals("\\N")){
-				System.out.println("Scaning cash position for : " + cn);
-				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cn));
-				filters.add(f1);
-			}
-		}
-		
-		FilterList filterList1 = new FilterList(filters);
-		
-		Scan scan = new Scan();
-		scan.setFilter(filterList1);
-		
 		final List<CashPosition> cashPositions = new ArrayList<CashPosition>();
 		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
 		
-		t.find("g11_cash_position", scan, new ResultsExtractor<String>() {
+		for(String cn : cashAccountNumbers){
+			if(!cn.equals("\\N")){
+				System.out.println("Creating cash position filter for : " + cn);
+				List<Filter> filters = new ArrayList<Filter>();
+				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cn));
+				filters.add(f1);
+				
+				FilterList filterList1 = new FilterList(filters);
+				
+				Scan scan = new Scan();
+				scan.setFilter(filterList1);
+				
+				t.find("g11_cash_position", scan, new ResultsExtractor<String>() {
 
-			public String extractData(ResultScanner scanner) throws Exception {
-				
-				Iterator<Result> i = scanner.iterator();
-				
-				while(i.hasNext()){
-					StringBuilder sb = new StringBuilder();
-					Result r = i.next();
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency")))).append(",");
-					byte[] ledgerBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Ledger_Balance"));
-					sb.append(ledgerBalance != null ? Bytes.toString(ledgerBalance) : null).append(",");
-					byte[] clearedBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"));
-					sb.append(clearedBalance != null ? Bytes.toString(clearedBalance) : clearedBalance).append(",");
-					byte[] accruedInterestAmount = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"));
-					sb.append(accruedInterestAmount != null ? Bytes.toString(accruedInterestAmount) : accruedInterestAmount);
-					System.out.println(sb.toString());
-					
-					try{
-						cashPositions.add(new CashPosition(Bytes.toString(r.getValue(Bytes.toBytes("cash_account_number"), Bytes.toBytes("Portfolio_code"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"))),
-							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"))),
-							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date"))))));
-					}catch(java.text.ParseException parseException) {
-						System.out.println(parseException.getMessage());
+					public String extractData(ResultScanner scanner) throws Exception {
+						
+						Iterator<Result> i = scanner.iterator();
+						
+						while(i.hasNext()){
+							StringBuilder sb = new StringBuilder();
+							Result r = i.next();
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date")))).append(",");
+							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency")))).append(",");
+							byte[] ledgerBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Ledger_Balance"));
+							sb.append(ledgerBalance != null ? Bytes.toString(ledgerBalance) : null).append(",");
+							byte[] clearedBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"));
+							sb.append(clearedBalance != null ? Bytes.toString(clearedBalance) : clearedBalance).append(",");
+							byte[] accruedInterestAmount = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"));
+							sb.append(accruedInterestAmount != null ? Bytes.toString(accruedInterestAmount) : accruedInterestAmount);
+							System.out.println(sb.toString());
+							
+							try{
+								cashPositions.add(new CashPosition(Bytes.toString(r.getValue(Bytes.toBytes("cash_account_number"), Bytes.toBytes("Portfolio_code"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"))),
+									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"))),
+									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"))),
+									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date"))))));
+							}catch(java.text.ParseException parseException) {
+								System.out.println(parseException.getMessage());
+							}
+						}
+						return null;
 					}
-				}
-				return null;
+					
+				});
 			}
-			
-		});
+		}
+		
+		
 		
 		CashPositionCache.getInstance().updateCache(cliengtId, cashPositions);
 		List<CashPosition> cashPositionlist = CashPositionCache.getInstance().get(cliengtId);
