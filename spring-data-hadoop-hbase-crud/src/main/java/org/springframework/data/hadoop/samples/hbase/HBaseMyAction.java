@@ -16,16 +16,18 @@
 
 package org.springframework.data.hadoop.samples.hbase;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -35,9 +37,10 @@ import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.hadoop.cache.FXDealCache;
+import org.springframework.data.hadoop.dao.FXDeal;
 import org.springframework.data.hadoop.hbase.HbaseTemplate;
 import org.springframework.data.hadoop.hbase.ResultsExtractor;
-import org.springframework.data.hadoop.hbase.TableCallback;
 import org.springframework.stereotype.Component;
 
 /**
@@ -55,12 +58,13 @@ public class HBaseMyAction {
 	@Inject
 	private HbaseTemplate t;
 
-	String rowName = "row";
-	String client_id = "client_id";
-	String columnFamilyName = "cf";
-	String tableName = "g11_client_hierarchy";
-	String cellValue = "http://blog.springsource.org/2012/02/29/introducing-spring-hadoop/";
-
+	private static String columnFamilyName = "cf";
+	private static String cellValue = "http://blog.springsource.org/2012/02/29/introducing-spring-hadoop/";
+	
+	private Map<String, List<String>> clientIdToFxmmCode = new HashMap<String, List<String>>();
+	private Map<String, List<String>> clientIdToCashAccountNumber = new HashMap<String, List<String>>();
+	private Map<String, List<String>> clientIdToSecurityAccountNumber = new HashMap<String, List<String>>();
+	
 	/**
 	 * Main entry point.
 	 */
@@ -72,82 +76,48 @@ public class HBaseMyAction {
 		//readData();
 
 		//5. scan data
-		//scanClientHierarchy();
-		//scanCashPosition();
-		scanPosition();
+		long t1 = System.currentTimeMillis();
+		scanClientHierarchy("11");
+		long t2 = System.currentTimeMillis();
+		System.out.println("Processing time - " +  (t2 - t1)/1000);
+//		scanCashPosition();
+//		scanCorporateEventEntitlements();
+//		scanCustodyPosition();
+//		scanCustodyTrade();
 
 		System.out.println("Application started");
 	}
 
-	/**
-	 * Read data from table.
-	 * 
-	 */
-	private void readData() {
-		// replace with get 
-		System.out.println(t.execute(tableName, new TableCallback<Long>() {
-			public Long doInTable(HTable table) throws Throwable {
-				Get get = new Get(Bytes.toBytes(rowName + "2"));
-				Result result = table.get(get);
-				byte[] valueByte = result.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes(client_id));
-				return Bytes.toLong(valueByte);
-			}
-		}));
-	}
 
 	/**
 	 * Scan table data.
 	 * 
 	 */
 
-	private void scanClientHierarchy() {
-		/*
-		t.find(tableName, columnFamilyName, client_id, new RowMapper<String>() {
-			public String mapRow(Result result, int rowNum) throws Exception {
-				System.out.println("Row key :" + result.getRow());
-				System.out.println("Key value :" + result.getRow());
-				return Bytes.toString(result.value());
-			}
-		});
-		*/
-		
-		/*
-		t.find(tableName, columnFamilyName, new ResultsExtractor<String>() {
-
-			public String extractData(ResultScanner scanner) throws Exception {
-				Iterator<Result> i = scanner.iterator();
-				while(i.hasNext()){
-					System.out.println("Client ID: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes(client_id))));
-					System.out.println("FXMM code: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code"))));
-					System.out.println("Security Account Number: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number"))));
-					System.out.println("Source System Country code: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"))));
-					System.out.println("Source System Code: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"))));
-					System.out.println("Calypso Counterparty ID: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("calypso_counterpty_id"))));
-					System.out.println("Cash Account Number: " + Bytes.toString(i.next().getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))));
-				}
-				return null;
-			}
-			
-		});
-		*/
-		
+	private void scanClientHierarchy(String id) {
 		List<Filter> filters = new ArrayList<Filter>();
-		Filter clientIdFilter = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id"), CompareOp.EQUAL, Bytes.toBytes("11"));
+		Filter clientIdFilter = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id"), CompareOp.EQUAL, Bytes.toBytes(id));
 		filters.add(clientIdFilter);
 		FilterList filterList1 = new FilterList(filters);
 		
 		Scan scan = new Scan();
 		scan.setFilter(filterList1);
 		
-		t.find(tableName, scan, new ResultsExtractor<String>() {
+		t.find("g11_client_hierarchy", scan, new ResultsExtractor<String>() {
 
 			public String extractData(ResultScanner scanner) throws Exception {
 				Iterator<Result> i = scanner.iterator();
 				System.out.println("Client ID, FXMM code, Security Account Number, Source System Country code, Source System Code, Calypso Counterparty ID, Cash Account Number\n");
+				
+				List<String> fxmmCodes = new ArrayList<String>();
+				List<String> cashAccountNumbers = new ArrayList<String>();
+				List<String> securityAccountNumbers = new ArrayList<String>();
+				
 				while(i.hasNext()){
 					StringBuilder sb = new StringBuilder();
 					Result r = i.next();
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes(client_id)))).append(",");
+					String clientId = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id")));
+					sb.append(clientId).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")))).append(",");
 					byte[] sourceSystemCountryCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"));
@@ -157,6 +127,128 @@ public class HBaseMyAction {
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("calypso_counterpty_id")))).append(",");
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))));
 					System.out.println(sb.toString());
+					
+					String fxmmCode = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")));
+					if(fxmmCode != null) {
+						fxmmCodes.add(fxmmCode);
+					}
+					clientIdToFxmmCode.put(clientId,fxmmCodes);
+					
+					String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")));
+					if(cashAccountNumber != null) {
+						cashAccountNumbers.add(cashAccountNumber);
+					}
+					clientIdToCashAccountNumber.put(clientId, cashAccountNumbers);
+					
+					String securityAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
+					if(securityAccountNumber != null) {
+						securityAccountNumbers.add(securityAccountNumber);
+					}
+					clientIdToSecurityAccountNumber.put(clientId, securityAccountNumbers);
+				}
+				System.out.println("Initialized clientIdToFxmmCode - " + fxmmCodes.size());
+				System.out.println("Initialized clientIdToCashAccountNumber - " + cashAccountNumbers.size());
+				System.out.println("Initialized clientIdToSecurityAccountNumber - " + securityAccountNumbers.size());
+				return null;
+			}
+		});
+		
+		List<String> fxmmCodes = clientIdToFxmmCode.get(id);
+		System.out.println(fxmmCodes);
+		for(String fxmmCode : fxmmCodes){
+			if(!fxmmCode.equals("\\N")){
+				System.out.println("Going to scan fx deal for : " + fxmmCode);
+				scanFxDeal(fxmmCode);
+			}
+		}
+	}
+	
+	private void scanFxDeal(String cptyCode) {
+		
+		List<Filter> filters = new ArrayList<Filter>();
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
+		filters.add(f1);
+		FilterList filterList1 = new FilterList(filters);
+		
+		Scan scan = new Scan();
+		scan.setFilter(filterList1);
+		final List<FXDeal> fxDeals = new ArrayList<FXDeal>();
+		final DateFormat format = new SimpleDateFormat("yyyyMMdd");
+		
+		t.find("g11_fx_deal", scan, new ResultsExtractor<String>() {
+
+			public String extractData(ResultScanner scanner) throws Exception {
+				Iterator<Result> i = scanner.iterator();
+				
+				while(i.hasNext()){
+					StringBuilder sb = new StringBuilder();
+					Result r = i.next();
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))));
+					System.out.println(sb.toString());
+					
+					try{
+						fxDeals.add(new FXDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status"))),
+							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price"))),
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount"))),
+							format.parse((Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date"))))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))))));
+					}catch(java.text.ParseException parseException) {
+						parseException.getMessage();
+					}
+				}
+				return null;
+			}
+			
+		});
+		FXDealCache.getInstance().updateCache(cptyCode, fxDeals);
+		List<FXDeal> fxCache = FXDealCache.getInstance().get(cptyCode);
+		if(fxCache != null) {
+			System.out.println("Initialized FX Deal Cache - " + fxCache.size());
+		}
+	}
+	
+	private void scanMmDeal(String portfolioCode){
+		List<Filter> filters = new ArrayList<Filter>();
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes("JAMLGGLFCC"));
+		filters.add(f1);
+		FilterList filterList1 = new FilterList(filters);
+		
+		Scan scan = new Scan();
+		scan.setFilter(filterList1);
+		
+		t.find("g11_mm_deal", scan, new ResultsExtractor<String>() {
+
+			public String extractData(ResultScanner scanner) throws Exception {
+				Iterator<Result> i = scanner.iterator();
+				while(i.hasNext()){
+					StringBuilder sb = new StringBuilder();
+					Result r = i.next();
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate")))).append(",");
+					System.out.println(sb.toString());
 				}
 				return null;
 			}
@@ -164,7 +256,7 @@ public class HBaseMyAction {
 		});
 	}
 	
-	private void scanCashPosition() {
+private void scanCashPosition() {
 		
 		List<Filter> filters = new ArrayList<Filter>();
 		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"), CompareOp.EQUAL, Bytes.toBytes("UK"));
@@ -201,7 +293,39 @@ public class HBaseMyAction {
 		});
 	}
 	
-	private void scanPosition() {
+	private void scanCorporateEventEntitlements() {
+		List<Filter> filters = new ArrayList<Filter>();
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes("JAMLGGLFCC"));
+		filters.add(f1);
+		FilterList filterList1 = new FilterList(filters);
+		
+		Scan scan = new Scan();
+		scan.setFilter(filterList1);
+		
+		t.find("g11_corporate_event_entitlements", scan, new ResultsExtractor<String>() {
+
+			public String extractData(ResultScanner scanner) throws Exception {
+				Iterator<Result> i = scanner.iterator();
+				while(i.hasNext()){
+					StringBuilder sb = new StringBuilder();
+					Result r = i.next();
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("entitlement_quantity")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("entitlement_rate")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("event_currency_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("ex_date")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("gross_income_amount")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("net_income_amount")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("pay_date")))).append(",");
+					System.out.println(sb.toString());
+				}
+				return null;
+			}
+			
+		});
+	}
+	
+	private void scanCustodyPosition() {
 		
 		List<Filter> filters = new ArrayList<Filter>();
 		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"), CompareOp.EQUAL, Bytes.toBytes("UK"));
@@ -237,6 +361,35 @@ public class HBaseMyAction {
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("location_country_code"))));
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Traded_Quantity"))));
 					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Settled_Quantity"))));
+					System.out.println(sb.toString());
+				}
+				return null;
+			}
+			
+		});
+	}
+	
+	private void scanCustodyTrade(){
+		List<Filter> filters = new ArrayList<Filter>();
+		Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_currency_code"), CompareOp.EQUAL, Bytes.toBytes("GBP"));
+		filters.add(f1);
+		FilterList filterList1 = new FilterList(filters);
+		
+		Scan scan = new Scan();
+		scan.setFilter(filterList1);
+		
+		t.find("g11_custody_trade", scan, new ResultsExtractor<String>() {
+
+			public String extractData(ResultScanner scanner) throws Exception {
+				Iterator<Result> i = scanner.iterator();
+				while(i.hasNext()){
+					StringBuilder sb = new StringBuilder();
+					Result r = i.next();
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_currency_code")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_price")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_status")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_type")))).append(",");
+					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("value_date")))).append(",");
 					System.out.println(sb.toString());
 				}
 				return null;

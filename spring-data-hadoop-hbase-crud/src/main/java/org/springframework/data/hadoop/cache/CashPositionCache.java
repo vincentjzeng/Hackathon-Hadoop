@@ -21,8 +21,7 @@ public class CashPositionCache {
 	}
 	
 	public void updateCache(String key, List <CashPosition> cpList){
-		
-		
+		cpCache.put(key, cpList);
 	}
 
 }
