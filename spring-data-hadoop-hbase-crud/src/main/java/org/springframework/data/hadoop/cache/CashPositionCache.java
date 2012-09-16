@@ -1,5 +1,6 @@
 package org.springframework.data.hadoop.cache;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
@@ -7,8 +8,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.hadoop.dao.CashPosition;
+import org.springframework.data.hadoop.dao.MMDeal;
 
-public class CashPositionCache {
+public class CashPositionCache  implements Serializable{
 	
 	private HashMap <String, List <CashPosition>> cpCache = new HashMap<String, List <CashPosition>>();
 	
@@ -46,5 +48,10 @@ public class CashPositionCache {
 	
 	public HashMap <String, List <CashPosition>>  getAll(){
 		return cpCache;
+	}
+	
+	
+	public void initCache(HashMap <String, List <CashPosition>> cache){
+		this.cpCache = cache;
 	}
 }

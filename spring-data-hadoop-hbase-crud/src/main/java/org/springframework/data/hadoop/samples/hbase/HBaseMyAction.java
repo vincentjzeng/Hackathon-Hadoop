@@ -235,11 +235,12 @@ public class HBaseMyAction {
 		System.out.println(portfolioCodes);
 		scanMmDeal(id, portfolioCodes);
 		
-		/*
+
 		List<String> cashAccountNumbers = clientIdToCashAccountNumber.get(id);
 		System.out.println(cashAccountNumbers);
 		scanCashPosition(id, cashAccountNumbers);
 		
+		/*
 		List<String> securityAccountNumbers = clientIdToSecurityAccountNumber.get(id);
 		System.out.println(securityAccountNumbers);
 		for(String securityAccountNumber : securityAccountNumbers){
@@ -426,68 +427,84 @@ public class HBaseMyAction {
 		
 	}
 	
-	private void scanCashPosition(String cliengtId, List<String> cashAccountNumbers) {
-		final List<CashPosition> cashPositions = new ArrayList<CashPosition>();
-		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+	private void scanCashPosition(String clientId, List<String> cashAccountNumbers) {
 		
-		for(String cn : cashAccountNumbers){
-			if(!cn.equals("\\N")){
-				System.out.println("Creating cash position filter for : " + cn);
-				List<Filter> filters = new ArrayList<Filter>();
-				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cn));
-				filters.add(f1);
-				
-				FilterList filterList1 = new FilterList(filters);
-				
-				Scan scan = new Scan();
-				scan.setFilter(filterList1);
-				
-				t.find("g11_cash_position", scan, new ResultsExtractor<String>() {
-
-					public String extractData(ResultScanner scanner) throws Exception {
-						
-						Iterator<Result> i = scanner.iterator();
-						
-						while(i.hasNext()){
-							StringBuilder sb = new StringBuilder();
-							Result r = i.next();
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency")))).append(",");
-							byte[] ledgerBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Ledger_Balance"));
-							sb.append(ledgerBalance != null ? Bytes.toString(ledgerBalance) : null).append(",");
-							byte[] clearedBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"));
-							sb.append(clearedBalance != null ? Bytes.toString(clearedBalance) : clearedBalance).append(",");
-							byte[] accruedInterestAmount = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"));
-							sb.append(accruedInterestAmount != null ? Bytes.toString(accruedInterestAmount) : accruedInterestAmount);
-							System.out.println(sb.toString());
-							
-							try{
-								cashPositions.add(new CashPosition(Bytes.toString(r.getValue(Bytes.toBytes("cash_account_number"), Bytes.toBytes("Portfolio_code"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"))),
-									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date"))))));
-							}catch(java.text.ParseException parseException) {
-								System.out.println(parseException.getMessage());
-							}
-						}
-						return null;
-					}
-					
-				});
+		CashPositionCache cache = CashPositionCache.getInstance();
+		String dataFile = "cpCache.dat";
+		
+		if(FileUnits.isFileExist(dataFile)){
+			cache.initCache((HashMap <String, List <CashPosition>>)FileUnits.readFileToCache(dataFile));
+			System.out.println("Read file to init cache");
+			List<CashPosition> cpCache = cache.get(clientId);
+			if(cpCache != null) {
+				System.out.println("Initialized Cash Position Cache - " + cpCache.size());
 			}
-		}
-		
-		
-		
-		CashPositionCache.getInstance().updateCache(cliengtId, cashPositions);
-		List<CashPosition> cashPositionlist = CashPositionCache.getInstance().get(cliengtId);
-		if(cashPositionlist != null) {
-			System.out.println("Initialized cache position list - " + cashPositionlist.size());
+		} else {
+
+			
+			final List<CashPosition> cashPositions = new ArrayList<CashPosition>();
+			final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+			
+			for(String cn : cashAccountNumbers){
+				if(!cn.equals("\\N")){
+					System.out.println("Creating cash position filter for : " + cn);
+					List<Filter> filters = new ArrayList<Filter>();
+					Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"), CompareOp.EQUAL, Bytes.toBytes(cn));
+					filters.add(f1);
+					
+					FilterList filterList1 = new FilterList(filters);
+					
+					Scan scan = new Scan();
+					scan.setFilter(filterList1);
+					
+					t.find("g11_cash_position", scan, new ResultsExtractor<String>() {
+
+						public String extractData(ResultScanner scanner) throws Exception {
+							
+							Iterator<Result> i = scanner.iterator();
+							
+							while(i.hasNext()){
+								StringBuilder sb = new StringBuilder();
+								Result r = i.next();
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency")))).append(",");
+								byte[] ledgerBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Ledger_Balance"));
+								sb.append(ledgerBalance != null ? Bytes.toString(ledgerBalance) : null).append(",");
+								byte[] clearedBalance = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"));
+								sb.append(clearedBalance != null ? Bytes.toString(clearedBalance) : clearedBalance).append(",");
+								byte[] accruedInterestAmount = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"));
+								sb.append(accruedInterestAmount != null ? Bytes.toString(accruedInterestAmount) : accruedInterestAmount);
+								System.out.println(sb.toString());
+								
+								try{
+									cashPositions.add(new CashPosition(Bytes.toString(r.getValue(Bytes.toBytes("cash_account_number"), Bytes.toBytes("Portfolio_code"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Cleared_balance"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Accrued_interest_amount"))),
+										format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Date"))))));
+								}catch(java.text.ParseException parseException) {
+									System.out.println(parseException.getMessage());
+								}
+							}
+							return null;
+						}
+						
+					});
+				}
+			}
+			
+			
+			CashPositionCache.getInstance().updateCache(clientId, cashPositions);
+			List<CashPosition> cashPositionlist = CashPositionCache.getInstance().get(clientId);
+			if(cashPositionlist != null) {
+				System.out.println("Initialized cache position list - " + cashPositionlist.size());
+			}
+			System.out.println("Save cache into files");
+			FileUnits.saveToDisk(dataFile, cache.getAll());
 		}
 	}
 	

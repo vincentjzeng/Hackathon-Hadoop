@@ -1,5 +1,6 @@
 package org.springframework.data.hadoop.cache;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
@@ -8,7 +9,7 @@ import java.util.List;
 import org.springframework.data.hadoop.dao.Entitlement;
 import org.springframework.data.hadoop.dao.MMDeal;
 
-public class EntitlementCache {
+public class EntitlementCache  implements Serializable{
 
 private HashMap <String, List <Entitlement>> etCache = new HashMap<String, List <Entitlement>>();
 	

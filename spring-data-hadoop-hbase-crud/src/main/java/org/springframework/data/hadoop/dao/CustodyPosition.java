@@ -1,9 +1,10 @@
 package org.springframework.data.hadoop.dao;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 
-public class CustodyPosition {
+public class CustodyPosition  implements Serializable{
 	
 	private String cashAcNum;
 	

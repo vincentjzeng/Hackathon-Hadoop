@@ -1,5 +1,6 @@
 package org.springframework.data.hadoop.cache;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
@@ -8,7 +9,7 @@ import java.util.List;
 import org.springframework.data.hadoop.dao.CustodyPosition;
 import org.springframework.data.hadoop.dao.CustodyTrade;
 
-public class CustodyPositionCache {
+public class CustodyPositionCache  implements Serializable{
 
 	private HashMap <String, List <CustodyPosition>> cpCache = new HashMap<String, List <CustodyPosition>>();
 	
