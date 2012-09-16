@@ -1,6 +1,8 @@
 package org.springframework.data.hadoop.cache;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
@@ -34,6 +36,21 @@ public class MMDealCache implements Serializable {
 	
 	public HashMap <String, List <MMDeal>>  getAll(){
 		return mmCache;
+	}
+	
+	public BigDecimal getAmountFromCache (String clientId, Date date, String ccyCode){
+		
+		List <MMDeal> mmList = mmCache.get(clientId);
+		BigDecimal mmAmount = new BigDecimal(0);
+		for(MMDeal mm : mmList){
+			if (date.equals(mm.getMaturityDate()) 
+					&& ccyCode.equals(mm.getCcyCode())){
+				mmAmount = mmAmount.add(mm.getInterestAmount()) ;
+			}
+		}
+		
+		return mmAmount;
+		
 	}
 	
 }

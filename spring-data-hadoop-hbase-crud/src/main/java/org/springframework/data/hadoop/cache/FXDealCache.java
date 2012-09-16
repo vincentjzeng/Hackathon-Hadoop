@@ -35,11 +35,10 @@ public class FXDealCache implements Serializable {
 		fxCache.put(key, cpList);
 	}
 	
-	public BigDecimal getAmountFromCache (Date date, String ccyCode){
-		
+	public BigDecimal getAmountFromCache (String clientId, Date date, String ccyCode){
 		BigDecimal totalAmount = new BigDecimal (0);
-		for(Map.Entry<String, List<FXDeal>> e : fxCache.entrySet()){
-			FXDeal fxDeal = (FXDeal)e.getValue();
+		List <FXDeal> fxDealList = fxCache.get(clientId);
+		for(FXDeal fxDeal : fxDealList){
 			if (date.equals(fxDeal.getSettlementDate()) 
 					&& BOOKED.equals(fxDeal.getDealStatus())){
 				if (ccyCode.equals(fxDeal.getSellCcyCode())){
@@ -49,7 +48,7 @@ public class FXDealCache implements Serializable {
 				} else if(ccyCode.equals(fxDeal.getBuyCcyCode())){
 					
 					totalAmount = totalAmount.add(fxDeal.getBuyCcyAmount());
-				}
+		}
 			}
 		}
 		
