@@ -206,7 +206,7 @@ public class HBaseMyAction {
 					}
 					clientIdToFxmmCode.put(clientId,fxmmCodes);
 					
-					String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")));
+					String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
 					if(cashAccountNumber != null) {
 						cashAccountNumbers.add(cashAccountNumber);
 					}
