@@ -32,23 +32,23 @@ public class CustodyPosition {
 	}
 	
 	
-	public String cashAcNum(){
+	public String getCashAcNum(){
 		
 		return this.cashAcNum;
 	}
-	public String instrumentName(){
+	public String getInstrumentName(){
 		
 		return this.instrumentName;
 	}
-	public String isinCode(){
+	public String getIsinCode(){
 		
 		return this.isinCode;
 	}
-	public Date date(){
+	public Date getDate(){
 		
 		return this.date;
 	}
-	public BigDecimal tradedQuantity(){
+	public BigDecimal getTradedQuantity(){
 		
 		return this.tradedQuantity;
 	}

@@ -1,6 +1,7 @@
 package org.springframework.data.hadoop.dao;
 
 import java.math.BigDecimal;
+import java.util.Date;
 
 public class CustodyTrade {
 	
@@ -15,9 +16,11 @@ public class CustodyTrade {
 	private BigDecimal tradeAmount;
 	
 	private BigDecimal tradePrice;
+	
+	private Date valueDate;
 
 	public CustodyTrade(String cashAcNum, String tradeStatus, String tradeType,
-			String tradeCcyCode, BigDecimal tradeAmount, BigDecimal tradePrice) {
+			String tradeCcyCode, BigDecimal tradeAmount, BigDecimal tradePrice, Date valueDate) {
 		super();
 		this.cashAcNum = cashAcNum;
 		this.tradeStatus = tradeStatus;
@@ -25,6 +28,7 @@ public class CustodyTrade {
 		this.tradeCcyCode = tradeCcyCode;
 		this.tradeAmount = tradeAmount;
 		this.tradePrice = tradePrice;
+		this.valueDate = valueDate;
 	}
 
 	public String getCashAcNum() {
@@ -47,8 +51,11 @@ public class CustodyTrade {
 		return tradeAmount;
 	}
 
+	public Date getValueDate() {
+		return valueDate;
+	}
+	
 	public BigDecimal getTradePrice() {
 		return tradePrice;
 	}
-	
 }

@@ -1,13 +1,20 @@
 package org.springframework.data.hadoop.service;
 
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 import org.springframework.data.hadoop.cache.CashPositionCache;
+import org.springframework.data.hadoop.cache.CustodyPositionCache;
+import org.springframework.data.hadoop.cache.CustodyTradeCache;
+import org.springframework.data.hadoop.cache.EntitlementCache;
 import org.springframework.data.hadoop.cache.FXDealCache;
+import org.springframework.data.hadoop.cache.MMDealCache;
 
 public class HBaseDataProcessor {
 	
@@ -18,35 +25,37 @@ public class HBaseDataProcessor {
 	private static final String FX = "FX";
 	
 	
-	public  Map< Date, Map <String, Amount>> getPositionByDate (String clientId, String productType[], String ccyCode, Date startDate, Date endDate){
-		
+	public  Map <String, List> getOverView (String clientId, List <String> prodcutTypeList, String ccyCode, Date startDate, Date endDate){
+
 		Map< Date, Map <String, Amount>> amountDateMap = new HashMap< Date, Map <String, Amount>>();
 		
-		Map <String, Amount> amountProdMap = new HashMap <String, Amount> ();
-		
+		Map <String, BigDecimal> amountList = new HashMap <String, BigDecimal>();
+		Map <String, List>  resultMap = new HashMap <String, List> ();
+		List <Date> dateList = new ArrayList <Date> ();
 		int dayDiff = endDate.compareTo(startDate);
-		if (productType!= null && productType.length != 0){
-			for (int i = 0; i < productType.length; i++){
-				for (int j = 0; j < dayDiff; j++){
-					Calendar cal = Calendar.getInstance();
-					cal.setTime(startDate);
-					cal.add(Calendar.DAY_OF_YEAR, j);
-					Date nextDate = cal.getTime();
-					Amount amount = getCurrentPosition (clientId, productType[i],  ccyCode,  nextDate);
-					amountProdMap.put(productType[i], amount);
-					amountDateMap.put(nextDate, amountProdMap);
+			for (String productType : prodcutTypeList){
+					for (int j = 0; j < dayDiff; j++){
+						Calendar cal = Calendar.getInstance();
+						cal.setTime(startDate);
+						cal.add(Calendar.DAY_OF_YEAR, j);
+						Date nextDate = cal.getTime();
+						dateList.add(nextDate);
+						BigDecimal amount = getCurrentPosition (clientId, productType,  ccyCode,  nextDate);
+						amountList.put(productType, amount);
+					}
 				}
-			}
 
+			resultMap.put("items", prodcutTypeList);
+			resultMap.put("dateString", dateList);
+			
+			return resultMap;
 		}
-
-		return amountDateMap;
-	}
 	
 	
-	public Amount getCurrentPosition (String clientId, String productType, String ccyCode, Date date){
+	public BigDecimal getCurrentPosition (String clientId, String productType, String ccyCode, Date date){
 		
-		Amount amount = new Amount();
+		BigDecimal amount = new BigDecimal(0);
+		
 		if (BONDS.equals(productType)){
 			
 			amount = getBondsAmount(clientId, ccyCode, date);
@@ -61,34 +70,51 @@ public class HBaseDataProcessor {
 		return amount;
 	}
 
-	private Amount getFxAmount(String clientId, String ccyCode, Date date) {
+	
+	private BigDecimal getFxAmount(String clientId, String ccyCode, Date date) {
 		// TODO Auto-generated method stub
-		Amount amount = new Amount();
+		
+		Calendar cal = Calendar.getInstance();
+		Date today = cal.getTime();
+		BigDecimal amount = new BigDecimal (0);
 		CashPositionCache cpCache = CashPositionCache.getInstance();
 		FXDealCache fxDealCache = FXDealCache.getInstance();
-		amount.setCurrentAllAmount(cpCache.getAmountFromCache(date, ccyCode));
-		amount.setFocastingAllAmount(fxDealCache.getAmountFromCache(date, ccyCode));
+		
+		MMDealCache mmDealCache = MMDealCache.getInstance();
+		if (date.compareTo(today) < 0 || date.compareTo(today) == 0 ){
+			amount = cpCache.getAmountFromCache(clientId,date, ccyCode);
+		} else {
+			BigDecimal fxAmount = fxDealCache.getAmountFromCache(clientId,date, ccyCode);
+			BigDecimal mmAmount = mmDealCache.getAmountFromCache(clientId, date, ccyCode);
+			amount = fxAmount.add(mmAmount);
+		}
 		return amount;
 		
 	}
 
-	private Amount getStocksAmount(String clientId, String ccyCode, Date date) {
+	private BigDecimal getStocksAmount(String clientId, String ccyCode, Date date) {
 		// TODO Auto-generated method stub
-		Amount amount = new Amount();
-		CashPositionCache cpCache = CashPositionCache.getInstance();
+		Calendar cal = Calendar.getInstance();
+		Date today = cal.getTime();
+		BigDecimal amount = new BigDecimal (0);
+		EntitlementCache etCache = EntitlementCache.getInstance();
 		FXDealCache fxDealCache = FXDealCache.getInstance();
-		amount.setCurrentAllAmount(cpCache.getAmountFromCache(date, ccyCode));
-		amount.setFocastingAllAmount(fxDealCache.getAmountFromCache(date, ccyCode));
+		amount = etCache.getAmountFromCache(clientId,date, ccyCode);
 		return amount;
 	}
 
-	private Amount getBondsAmount(String clientId, String ccyCode, Date date) {
+	private BigDecimal getBondsAmount(String clientId, String ccyCode, Date date) {
 		// TODO Auto-generated method stub
-		Amount amount = new Amount();
-		CashPositionCache cpCache = CashPositionCache.getInstance();
-		FXDealCache fxDealCache = FXDealCache.getInstance();
-		amount.setCurrentAllAmount(cpCache.getAmountFromCache(date, ccyCode));
-		amount.setFocastingAllAmount(fxDealCache.getAmountFromCache(date, ccyCode));
+		Calendar cal = Calendar.getInstance();
+		Date today = cal.getTime();
+		BigDecimal amount = new BigDecimal (0);
+		CustodyPositionCache cpCache = CustodyPositionCache.getInstance();
+		CustodyTradeCache ctCache = CustodyTradeCache.getInstance();
+		if (date.compareTo(today) < 0 || date.compareTo(today) == 0 ){
+			amount = cpCache.getAmountFromCache(clientId, date, ccyCode);
+		} else {
+			amount = ctCache.getAmountFromCache(clientId, date, ccyCode);
+		}
 		return amount;
 	}
 	

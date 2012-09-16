@@ -581,6 +581,7 @@ public class HBaseMyAction {
 		scan.setFilter(filterList1);
 		
 		final List<CustodyTrade> custodyTrades = new ArrayList<CustodyTrade>();
+		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
 		
 		t.find("g11_custody_trade", scan, new ResultsExtractor<String>() {
 
@@ -602,7 +603,8 @@ public class HBaseMyAction {
 							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_type"))),
 							Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_currency_code"))),
 							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_amount"))),
-							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_price")))));
+							Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_price"))),
+							format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("value_date"))))));
 				}
 				return null;
 				

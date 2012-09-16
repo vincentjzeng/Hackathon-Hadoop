@@ -25,14 +25,13 @@ public class CashPositionCache {
 		cpCache.put(key, cpList);
 	}
 	
-	public BigDecimal getAmountFromCache (Date date, String ccyCode){
+	public BigDecimal getAmountFromCache (String clientId, Date date, String ccyCode){
 		
+		List <CashPosition> cpList = cpCache.get(clientId);
 		BigDecimal cashPosition = new BigDecimal(0);
-		for(Map.Entry<String, List<CashPosition>> e : cpCache.entrySet()){
-			CashPosition cp = (CashPosition)e.getValue();
+		for(CashPosition cp : cpList){
 			if (date.equals(cp.getDate()) 
 					&& ccyCode.equals(cp.getCcy())){
-					
 				cashPosition = cashPosition.add(cp.getAccruedInterestAmount()) ;
 			}
 		}
