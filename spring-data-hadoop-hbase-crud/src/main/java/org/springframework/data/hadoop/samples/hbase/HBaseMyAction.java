@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
@@ -40,6 +39,7 @@ import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.hadoop.cache.CashPositionCache;
+import org.springframework.data.hadoop.cache.ClientHierarchyCache;
 import org.springframework.data.hadoop.cache.CustodyPositionCache;
 import org.springframework.data.hadoop.cache.CustodyTradeCache;
 import org.springframework.data.hadoop.cache.EntitlementCache;
@@ -74,10 +74,6 @@ public class HBaseMyAction {
 
 	private static String columnFamilyName = "cf";
 	private static String cellValue = "http://blog.springsource.org/2012/02/29/introducing-spring-hadoop/";
-	
-	private Map<String, List<String>> clientIdToFxmmCode = new HashMap<String, List<String>>();
-	private Map<String, List<String>> clientIdToCashAccountNumber = new HashMap<String, List<String>>();
-	private Map<String, List<String>> clientIdToSecurityAccountNumber = new HashMap<String, List<String>>();
 	
 	/**
 	 * Main entry point.
@@ -134,19 +130,19 @@ public class HBaseMyAction {
 				if(fxmmCode != null) {
 					fxmmCodes.add(fxmmCode);
 				}
-				clientIdToFxmmCode.put(clientId,fxmmCodes);
+				ClientHierarchyCache.getInstance().getClientIdToFxmmCode().put(clientId,fxmmCodes);
 				
 				String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number")));
 				if(cashAccountNumber != null) {
 					cashAccountNumbers.add(cashAccountNumber);
 				}
-				clientIdToCashAccountNumber.put(clientId, cashAccountNumbers);
+				ClientHierarchyCache.getInstance().getClientIdToCashAccountNumber().put(clientId, cashAccountNumbers);
 				
 				String securityAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
 				if(securityAccountNumber != null) {
 					securityAccountNumbers.add(securityAccountNumber);
 				}
-				clientIdToSecurityAccountNumber.put(clientId, securityAccountNumbers);
+				ClientHierarchyCache.getInstance().getClientIdToSecurityAccountNumber().put(clientId, securityAccountNumbers);
 				
 				System.out.println("Initialized clientIdToFxmmCode - " + fxmmCodes.size());
 				System.out.println("Initialized clientIdToCashAccountNumber - " + cashAccountNumbers.size());
@@ -164,79 +160,95 @@ public class HBaseMyAction {
 	 */
 
 	private void scanClientHierarchy(String id) {
-		List<Filter> filters = new ArrayList<Filter>();
-		Filter clientIdFilter = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id"), CompareOp.EQUAL, Bytes.toBytes(id));
-		filters.add(clientIdFilter);
-		FilterList filterList1 = new FilterList(filters);
+		ClientHierarchyCache cache = ClientHierarchyCache.getInstance();
+		String dataFile = "clientHierarchy.dat";
 		
-		Scan scan = new Scan();
-		scan.setFilter(filterList1);
-		
-		t.find("g11_client_hierarchy", scan, new ResultsExtractor<String>() {
+		if(FileUnits.isFileExist(dataFile)){
+			cache.initCache((ClientHierarchyCache)FileUnits.readFileToCache(dataFile));
+			System.out.println("Read file to init cache");
+			System.out.println("Initialized clientIdToFxmmCode - " + ClientHierarchyCache.getInstance().getClientIdToFxmmCode().get(id).size());
+			System.out.println("Initialized clientIdToCashAccountNumber - " + ClientHierarchyCache.getInstance().getClientIdToCashAccountNumber().get(id).size());
+			System.out.println("Initialized clientIdToSecurityAccountNumber - " + ClientHierarchyCache.getInstance().getClientIdToSecurityAccountNumber().get(id).size());
+		} else {
+			List<Filter> filters = new ArrayList<Filter>();
+			Filter clientIdFilter = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id"), CompareOp.EQUAL, Bytes.toBytes(id));
+			filters.add(clientIdFilter);
+			FilterList filterList1 = new FilterList(filters);
+			
+			Scan scan = new Scan();
+			scan.setFilter(filterList1);
+			
+			t.find("g11_client_hierarchy", scan, new ResultsExtractor<String>() {
 
-			public String extractData(ResultScanner scanner) throws Exception {
-				Iterator<Result> i = scanner.iterator();
-				System.out.println("Client ID, FXMM code, Security Account Number, Source System Country code, Source System Code, Calypso Counterparty ID, Cash Account Number\n");
-				
-				List<String> fxmmCodes = new ArrayList<String>();
-				List<String> cashAccountNumbers = new ArrayList<String>();
-				List<String> securityAccountNumbers = new ArrayList<String>();
-				
-				while(i.hasNext()){
-					StringBuilder sb = new StringBuilder();
-					Result r = i.next();
+				public String extractData(ResultScanner scanner) throws Exception {
+					Iterator<Result> i = scanner.iterator();
+					System.out.println("Client ID, FXMM code, Security Account Number, Source System Country code, Source System Code, Calypso Counterparty ID, Cash Account Number\n");
 					
-					System.out.println("Row key - " + Bytes.toString(r.getRow()));
+					List<String> fxmmCodes = new ArrayList<String>();
+					List<String> cashAccountNumbers = new ArrayList<String>();
+					List<String> securityAccountNumbers = new ArrayList<String>();
 					
-					String clientId = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id")));
-					sb.append(clientId).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")))).append(",");
-					byte[] sourceSystemCountryCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"));
-					sb.append(sourceSystemCountryCode != null ? Bytes.toString(sourceSystemCountryCode) : null).append(",");
-					byte[] sourceSystemCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"));
-					sb.append(sourceSystemCode != null ? Bytes.toString(sourceSystemCode) : sourceSystemCode).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("calypso_counterpty_id")))).append(",");
-					sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))));
-					System.out.println(sb.toString());
-					
-					String fxmmCode = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")));
-					if(fxmmCode != null) {
-						fxmmCodes.add(fxmmCode);
+					while(i.hasNext()){
+						StringBuilder sb = new StringBuilder();
+						Result r = i.next();
+						
+						System.out.println("Row key - " + Bytes.toString(r.getRow()));
+						
+						String clientId = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("client_id")));
+						sb.append(clientId).append(",");
+						sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")))).append(",");
+						sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")))).append(",");
+						byte[] sourceSystemCountryCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("source_system_country_code"));
+						sb.append(sourceSystemCountryCode != null ? Bytes.toString(sourceSystemCountryCode) : null).append(",");
+						byte[] sourceSystemCode = r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Source_system_code"));
+						sb.append(sourceSystemCode != null ? Bytes.toString(sourceSystemCode) : sourceSystemCode).append(",");
+						sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("calypso_counterpty_id")))).append(",");
+						sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("cash_account_number"))));
+						System.out.println(sb.toString());
+						
+						String fxmmCode = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("fxmm_code")));
+						if(fxmmCode != null) {
+							fxmmCodes.add(fxmmCode);
+						}
+						ClientHierarchyCache.getInstance().getClientIdToFxmmCode().put(clientId,fxmmCodes);
+						
+						String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
+						if(cashAccountNumber != null) {
+							cashAccountNumbers.add(cashAccountNumber);
+						}
+						ClientHierarchyCache.getInstance().getClientIdToCashAccountNumber().put(clientId, cashAccountNumbers);
+						
+						String securityAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
+						if(securityAccountNumber != null) {
+							securityAccountNumbers.add(securityAccountNumber);
+						}
+						ClientHierarchyCache.getInstance().getClientIdToSecurityAccountNumber().put(clientId, securityAccountNumbers);
 					}
-					clientIdToFxmmCode.put(clientId,fxmmCodes);
-					
-					String cashAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
-					if(cashAccountNumber != null) {
-						cashAccountNumbers.add(cashAccountNumber);
-					}
-					clientIdToCashAccountNumber.put(clientId, cashAccountNumbers);
-					
-					String securityAccountNumber = Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("security_account_number")));
-					if(securityAccountNumber != null) {
-						securityAccountNumbers.add(securityAccountNumber);
-					}
-					clientIdToSecurityAccountNumber.put(clientId, securityAccountNumbers);
+
+					System.out.println("Initialized clientIdToFxmmCode - " + fxmmCodes.size());
+					System.out.println("Initialized clientIdToCashAccountNumber - " + cashAccountNumbers.size());
+					System.out.println("Initialized clientIdToSecurityAccountNumber - " + securityAccountNumbers.size());
+					return null;
 				}
-				System.out.println("Initialized clientIdToFxmmCode - " + fxmmCodes.size());
-				System.out.println("Initialized clientIdToCashAccountNumber - " + cashAccountNumbers.size());
-				System.out.println("Initialized clientIdToSecurityAccountNumber - " + securityAccountNumbers.size());
-				return null;
-			}
-		});
+			});
+			System.out.println("Save cache into files");
+			FileUnits.saveToDisk(dataFile, cache.getAll());
+		}
+
+		
 		
 		long t1 = System.currentTimeMillis();
 		
-		List<String> fxmmCodes = clientIdToFxmmCode.get(id);
+		List<String> fxmmCodes = ClientHierarchyCache.getInstance().getClientIdToFxmmCode().get(id);
 		System.out.println(fxmmCodes);
 		scanFxDeal(id, fxmmCodes);
 		
-		List<String> portfolioCodes = clientIdToFxmmCode.get(id);
+		List<String> portfolioCodes = ClientHierarchyCache.getInstance().getClientIdToFxmmCode().get(id);
 		System.out.println(portfolioCodes);
 		scanMmDeal(id, portfolioCodes);
 		
 
-		List<String> cashAccountNumbers = clientIdToCashAccountNumber.get(id);
+		List<String> cashAccountNumbers = ClientHierarchyCache.getInstance().getClientIdToCashAccountNumber().get(id);
 		System.out.println(cashAccountNumbers);
 		scanCashPosition(id, cashAccountNumbers);
 		
@@ -350,8 +362,6 @@ public class HBaseMyAction {
 			System.out.println("Save cache into files");
 			FileUnits.saveToDisk(dataFile, cache.getAll());
 		}
-		
-		
 	}
 	
 	private void scanMmDeal(String clientId, List<String> portfolioCodes){
