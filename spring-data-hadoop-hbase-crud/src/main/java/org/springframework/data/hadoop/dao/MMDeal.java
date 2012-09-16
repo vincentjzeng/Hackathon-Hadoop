@@ -1,9 +1,10 @@
 package org.springframework.data.hadoop.dao;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 
-public class MMDeal {
+public class MMDeal implements Serializable {
 	
 	private String portfolioCode;
 	private String ccyCode;

@@ -1,5 +1,6 @@
 package org.springframework.data.hadoop.cache;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
@@ -8,8 +9,12 @@ import java.util.Map;
 
 import org.springframework.data.hadoop.dao.FXDeal;
 
-public class FXDealCache {
+public class FXDealCache implements Serializable {
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -684350633697261534L;
 	private static final String BOOKED = "BOOKED";
 	private HashMap <String, List <FXDeal>> fxCache = new HashMap<String, List <FXDeal>>();
 	
@@ -22,8 +27,11 @@ public class FXDealCache {
 		return fxDealCache;
 	}
 	
+	public void initCache(HashMap <String, List <FXDeal>> cache){
+		this.fxCache = cache;
+	}
+	
 	public void updateCache(String key, List <FXDeal> cpList){
-		
 		fxCache.put(key, cpList);
 	}
 	
@@ -55,4 +63,5 @@ public class FXDealCache {
 	public HashMap <String, List <FXDeal>>  getAll(){
 		return fxCache;
 	}
+
 }

@@ -1,11 +1,12 @@
 package org.springframework.data.hadoop.cache;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.List;
 
 import org.springframework.data.hadoop.dao.MMDeal;
 
-public class MMDealCache {
+public class MMDealCache implements Serializable {
 
 	private HashMap <String, List <MMDeal>> mmCache = new HashMap<String, List <MMDeal>>();
 	
@@ -16,6 +17,10 @@ public class MMDealCache {
 	
 	public static MMDealCache getInstance(){
 		return mmDealCache;
+	}
+	
+	public void initCache(HashMap <String, List <MMDeal>> cache){
+		this.mmCache = cache;
 	}
 	
 	public void updateCache(String key, List <MMDeal> cpList){

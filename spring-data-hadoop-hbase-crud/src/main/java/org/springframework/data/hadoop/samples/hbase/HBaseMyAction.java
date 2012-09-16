@@ -44,6 +44,7 @@ import org.springframework.data.hadoop.cache.CustodyPositionCache;
 import org.springframework.data.hadoop.cache.CustodyTradeCache;
 import org.springframework.data.hadoop.cache.EntitlementCache;
 import org.springframework.data.hadoop.cache.FXDealCache;
+import org.springframework.data.hadoop.cache.FileUnits;
 import org.springframework.data.hadoop.cache.MMDealCache;
 import org.springframework.data.hadoop.dao.CashPosition;
 import org.springframework.data.hadoop.dao.CustodyPosition;
@@ -234,6 +235,7 @@ public class HBaseMyAction {
 		System.out.println(portfolioCodes);
 		scanMmDeal(id, portfolioCodes);
 		
+		/*
 		List<String> cashAccountNumbers = clientIdToCashAccountNumber.get(id);
 		System.out.println(cashAccountNumbers);
 		scanCashPosition(id, cashAccountNumbers);
@@ -260,136 +262,168 @@ public class HBaseMyAction {
 				scanCustodyTrade(securityAccountNumber);
 			}
 		}
+		*/
 		
 		long t2 = System.currentTimeMillis();
 		System.out.println("Processing time - " +  (t2 - t1)/1000);
 	}
 	
 	private void scanFxDeal(String clientId, List<String> cptyCodes) {
+		FXDealCache cache = FXDealCache.getInstance();
+		String dataFile = "fxCache.dat";
 		
-		final List<FXDeal> fxDeals = new ArrayList<FXDeal>();
-		final DateFormat format = new SimpleDateFormat("yyyyMMdd");
-		
-		for(String cptyCode : cptyCodes){
-			
-			if(!cptyCode.equals("\\N")){
-				System.out.println("Creating fx deal filter for : " + cptyCode);
-				FilterList filters = new FilterList();
-				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
-				filters.addFilter(f1);
-				
-				Scan scan = new Scan();
-				scan.setFilter(filters);
-				
-				t.find("g11_fx_deal", scan, new ResultsExtractor<String>() {
-
-					public String extractData(ResultScanner scanner) throws Exception {
-						Iterator<Result> i = scanner.iterator();
-						
-						while(i.hasNext()){
-							StringBuilder sb = new StringBuilder();
-							Result r = i.next();
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))));
-							System.out.println(sb.toString());
-							
-							try{
-								fxDeals.add(new FXDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount"))),
-									format.parse((Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date"))))),
-									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))))));
-							}catch(java.text.ParseException parseException) {
-								parseException.getMessage();
-							}
-						}
-						return null;
-					}
-					
-				});
-
+		if(FileUnits.isFileExist(dataFile)){
+			cache.initCache((HashMap <String, List <FXDeal>>)FileUnits.readFileToCache(dataFile));
+			System.out.println("Read file to init cache");
+			List<FXDeal> fxCache = cache.get(clientId);
+			if(fxCache != null) {
+				System.out.println("Initialized FX Deal Cache - " + fxCache.size());
 			}
-		}
+		} else {
+			final List<FXDeal> fxDeals = new ArrayList<FXDeal>();
+			final DateFormat format = new SimpleDateFormat("yyyyMMdd");
+			
+			for(String cptyCode : cptyCodes){
+				
+				if(!cptyCode.equals("\\N")){
+					System.out.println("Creating fx deal filter for : " + cptyCode);
+					FilterList filters = new FilterList();
+					Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"), CompareOp.EQUAL, Bytes.toBytes(cptyCode));
+					filters.addFilter(f1);
+					
+					Scan scan = new Scan();
+					scan.setFilter(filters);
+					
+					t.find("g11_fx_deal", scan, new ResultsExtractor<String>() {
 
-		FXDealCache.getInstance().updateCache(clientId, fxDeals);
-		List<FXDeal> fxCache = FXDealCache.getInstance().get(clientId);
-		if(fxCache != null) {
-			System.out.println("Initialized FX Deal Cache - " + fxCache.size());
+						public String extractData(ResultScanner scanner) throws Exception {
+							Iterator<Result> i = scanner.iterator();
+							
+							while(i.hasNext()){
+								StringBuilder sb = new StringBuilder();
+								Result r = i.next();
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))));
+								System.out.println(sb.toString());
+								
+								try{
+									fxDeals.add(new FXDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("FX_counterparty_code"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_code"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_code"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_Status"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Deal_type"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Forward_point"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Spot_Rate"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("buy_currency_amount"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("deal_price"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("sell_currency_amount"))),
+										format.parse((Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("settlement_date"))))),
+										format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("trade_date"))))));
+								}catch(java.text.ParseException parseException) {
+									parseException.getMessage();
+								}
+							}
+							return null;
+						}
+						
+					});
+
+				}
+			}
+
+			cache.updateCache(clientId, fxDeals);
+			List<FXDeal> fxCache = FXDealCache.getInstance().get(clientId);
+			if(fxCache != null) {
+				System.out.println("Initialized FX Deal Cache - " + fxCache.size());
+			}
+			System.out.println("Save cache into files");
+			FileUnits.saveToDisk(dataFile, cache.getAll());
 		}
+		
+		
 	}
 	
 	private void scanMmDeal(String clientId, List<String> portfolioCodes){
-		final List<MMDeal> mmDeals = new ArrayList<MMDeal>();
-		final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
 		
-		for(String portfolioCode : portfolioCodes){
-			if(!portfolioCode.equals("\\N")){
-				System.out.println("Creating mm deal filter for : " + portfolioCode);
-				List<Filter> filters = new ArrayList<Filter>();
-				Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
-				filters.add(f1);
-				
-				FilterList filterList1 = new FilterList(filters);
-				
-				Scan scan = new Scan();
-				scan.setFilter(filterList1);
-				
-				t.find("g11_mm_deal", scan, new ResultsExtractor<String>() {
-
-					public String extractData(ResultScanner scanner) throws Exception {
-						Iterator<Result> i = scanner.iterator();
-						while(i.hasNext()){
-							StringBuilder sb = new StringBuilder();
-							Result r = i.next();
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate")))).append(",");
-							sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
-							System.out.println(sb.toString());
-							
-							try{
-								mmDeals.add(new MMDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"))),
-									Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount"))),
-									Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate"))),
-									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))),
-									format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date"))))));
-							}catch(java.text.ParseException parseException) {
-								System.out.println(parseException.getMessage());
-							}
-						}
-						return null;
-					}
-				});
+		MMDealCache cache = MMDealCache.getInstance();
+		String dataFile = "mmCache.dat";
+		
+		if(FileUnits.isFileExist(dataFile)){
+			cache.initCache((HashMap <String, List <MMDeal>>)FileUnits.readFileToCache(dataFile));
+			System.out.println("Read file to init cache");
+			List<MMDeal> mmCache = cache.get(clientId);
+			if(mmCache != null) {
+				System.out.println("Initialized MM Deal Cache - " + mmCache.size());
 			}
+		} else {
+			final List<MMDeal> mmDeals = new ArrayList<MMDeal>();
+			final DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+			
+			for(String portfolioCode : portfolioCodes){
+				if(!portfolioCode.equals("\\N")){
+					System.out.println("Creating mm deal filter for : " + portfolioCode);
+					List<Filter> filters = new ArrayList<Filter>();
+					Filter f1 = new SingleColumnValueFilter(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"), CompareOp.EQUAL, Bytes.toBytes(portfolioCode));
+					filters.add(f1);
+					
+					FilterList filterList1 = new FilterList(filters);
+					
+					Scan scan = new Scan();
+					scan.setFilter(filterList1);
+					
+					t.find("g11_mm_deal", scan, new ResultsExtractor<String>() {
+
+						public String extractData(ResultScanner scanner) throws Exception {
+							Iterator<Result> i = scanner.iterator();
+							while(i.hasNext()){
+								StringBuilder sb = new StringBuilder();
+								Result r = i.next();
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate")))).append(",");
+								sb.append(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date")))).append(",");
+								System.out.println(sb.toString());
+								
+								try{
+									mmDeals.add(new MMDeal(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Portfolio_code"))),
+										Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("currency_code"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Principal_amount"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_amount"))),
+										Bytes.toBigDecimal(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("interest_rate"))),
+										format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Trade_date")))),
+										format.parse(Bytes.toString(r.getValue(Bytes.toBytes(columnFamilyName), Bytes.toBytes("Maturity_date"))))));
+								}catch(java.text.ParseException parseException) {
+									System.out.println(parseException.getMessage());
+								}
+							}
+							return null;
+						}
+					});
+				}
+			}
+			
+			MMDealCache.getInstance().updateCache(clientId, mmDeals);
+			List<MMDeal> mmList = MMDealCache.getInstance().get(clientId);
+			if(mmList != null) {
+				System.out.println("Initialized FX MM List - " + mmList.size());
+			}
+			System.out.println("Save cache into files");
+			FileUnits.saveToDisk(dataFile, cache.getAll());
 		}
 		
-		MMDealCache.getInstance().updateCache(clientId, mmDeals);
-		List<MMDeal> mmList = MMDealCache.getInstance().get(clientId);
-		if(mmList != null) {
-			System.out.println("Initialized FX MM List - " + mmList.size());
-		}
 	}
 	
 	private void scanCashPosition(String cliengtId, List<String> cashAccountNumbers) {
